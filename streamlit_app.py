@@ -280,7 +280,8 @@ yearly["state"] = yearly["state"].astype(str).str.strip()
 yearly["variable"] = yearly["variable"].astype(str).str.strip()
 yearly["year"] = pd.to_numeric(yearly["year"], errors="coerce")
 yearly["value"] = pd.to_numeric(yearly["value"], errors="coerce")
-yearly = yearly.dropna(subset=["year"]).astype({"year": int})
+yearly = yearly.dropna(subset=["year", "value"]).copy()
+yearly["year"] = yearly["year"].astype(int)
 
 trends = None
 if trends_raw is not None:
