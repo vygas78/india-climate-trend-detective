@@ -58,6 +58,24 @@ PAGE 2 - All-State Trend Overview
   - The toolbar under each chart lets you zoom and save the chart as an image.
 
 
+WEB VERSION (optional, Streamlit)
+---------------------------------
+streamlit_app.py is a browser version of the same app. It uses the same
+statistics and charts as the desktop app, so the numbers are identical.
+
+Run it on your own computer:
+    py -m pip install -r requirements.txt
+    py -m streamlit run streamlit_app.py
+
+Put it online for free (Streamlit Community Cloud):
+  1. Keep all files in a public GitHub repository.
+  2. Go to share.streamlit.io and sign in with GitHub.
+  3. Click "Create app", choose the repository and branch, and set the main
+     file path to streamlit_app.py.
+  4. Click Deploy. You get a link anyone can open in a browser.
+Free apps go to sleep when unused and take about 30 seconds to wake up.
+
+
 READING THE NUMBERS CAREFULLY
 -----------------------------
 - Page 1 (calculated here) and Page 2 (supplied) can differ. In the supplied
@@ -104,4 +122,5 @@ yearly_series.csv        yearly data (real data supplied by the team)
 state_trends.csv         pre-calculated trend summary (supplied)
 requirements.txt         Python packages (pandas, numpy, scipy, matplotlib)
 run_windows.bat          one-click launcher
+streamlit_app.py         optional web version (Streamlit)
 README.txt               this file
