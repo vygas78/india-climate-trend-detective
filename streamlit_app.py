@@ -36,7 +36,7 @@ VAR_SOFT = {"T2M": "#F7C6A6", "PRECTOTCORR": "#A9D0F5"}
 INK = "#0F172A"
 MUTED = "#64748B"
 GRID = "#E5EAF1"
-UNITS_NOTE = "units not given in CSV"
+UNITS_NOTE = "temperature"
 
 REQUIRED_YEARLY = ["state", "variable", "year", "value"]
 REQUIRED_TRENDS = ["state", "variable", "change_per_year", "p_value", "significant"]
