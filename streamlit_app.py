@@ -452,7 +452,7 @@ with tab1:
             )
             base_layout(fig, 450)
             fig.update_xaxes(tickformat="d", dtick=2 if (end - start) > 8 else 1, title="Year")
-            fig.update_yaxes(title=f"Value ({VAR_UNITS.get(ov_var,"units not verified")})")
+            fig.update_yaxes(title=f"Value ({unit_of(variable)})")
             st.plotly_chart(fig, config={"displayModeBar": False})
 
         with right:
@@ -552,7 +552,7 @@ with tab2:
             st.markdown(
                 f'<div class="section-title">Rate of change per year by state · {var_label(ov_var)}</div>'
                 f'<div class="section-sub">Solid bars are marked significant in the supplied summary; '
-                f"faded bars are not. Values: {VAR_UNITS.get(ov_var,"units not verified")}.</div>",
+                f"faded bars are not. Values: {unit_of(ov_var)}.</div>",
                 unsafe_allow_html=True,
             )
             ds = d.sort_values("change_per_year")
@@ -575,7 +575,7 @@ with tab2:
             base_layout(fig2, max(440, 24 * len(ds) + 90))
             fig2.update_layout(barmode="relative", bargap=0.25)
             fig2.update_yaxes(categoryorder="array", categoryarray=list(ds["state"]), gridcolor="rgba(0,0,0,0)")
-            fig2.update_xaxes(title=f"Change per year ({VAR_UNITS.get(ov_var,"units not verified")})", gridcolor=GRID, zeroline=True,
+            fig2.update_xaxes(title=f"Change per year ({unit_of(ov_var)})", gridcolor=GRID, zeroline=True,
                               zerolinecolor="#94A3B8", showgrid=True)
             st.plotly_chart(fig2, config={"displayModeBar": False})
 
