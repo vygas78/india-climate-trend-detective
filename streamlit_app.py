@@ -37,7 +37,7 @@ INK = "#0F172A"
 MUTED = "#64748B"
 GRID = "#E5EAF1"
 VAR_UNITS={
-  "T2M": "°C"
+  "T2M": "°C",
   "PRECTOTCORR" : "mm/day"
 }
 REQUIRED_YEARLY = ["state", "variable", "year", "value"]
