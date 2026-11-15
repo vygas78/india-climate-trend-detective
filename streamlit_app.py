@@ -414,7 +414,7 @@ with tab1:
             st.markdown(
                 f'<div class="section-title">{state} · {var_label(variable)}, {start}–{end}</div>'
                 f'<div class="section-sub">Observed yearly values with fitted trend lines '
-                f"(values: {VAR_UNITS.get(ov_var,"units not verified")})</div>",
+                f"(values: {VAR_UNITS.get(variable,'units not verified')})</div>",
                 unsafe_allow_html=True,
             )
             xs = np.array([sub["year"].min(), sub["year"].max()], dtype=float)
