@@ -1,3 +1,10 @@
+"""EarthTrend Explorer - redesigned Streamlit UI.
+
+Reads the real datasets (no sample data):
+  yearly_series.csv : state, variable, year, value
+  state_trends.csv  : state, variable, trend, change_per_year, p_value, significant
+Both are loaded from the same folder as this file, or uploaded in the sidebar.
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,6 +24,9 @@ st.set_page_config(
 
 APP_DIR = Path(__file__).resolve().parent
 
+# --------------------------------------------------------------------------
+# Constants / palette
+# --------------------------------------------------------------------------
 VAR_LABELS = {
     "T2M": "Temperature (T2M)",
     "PRECTOTCORR": "Precipitation (PRECTOTCORR)",
@@ -31,6 +41,9 @@ UNITS_NOTE = "units not given in CSV"
 REQUIRED_YEARLY = ["state", "variable", "year", "value"]
 REQUIRED_TRENDS = ["state", "variable", "change_per_year", "p_value", "significant"]
 
+# --------------------------------------------------------------------------
+# Styling
+# --------------------------------------------------------------------------
 CSS = """
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
@@ -40,6 +53,7 @@ html, body, [class*="css"], .stApp { font-family: 'Inter', sans-serif; }
 header[data-testid="stHeader"] { background: transparent; }
 #MainMenu, footer { visibility: hidden; }
 
+/* Hero */
 .hero {
   background: linear-gradient(120deg, #0B1F3A 0%, #12497A 55%, #1B7F8C 100%);
   border-radius: 20px; padding: 30px 34px; color: #fff; margin-bottom: 22px;
@@ -58,12 +72,14 @@ header[data-testid="stHeader"] { background: transparent; }
   padding: 5px 12px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
 }
 
+/* Tabs */
 .stTabs [data-baseweb="tab-list"] { gap: 6px; border-bottom: 1px solid #DDE4EE; }
 .stTabs [data-baseweb="tab"] {
   height: 46px; padding: 0 18px; border-radius: 10px 10px 0 0; font-weight: 600; color: #475569;
 }
 .stTabs [aria-selected="true"] { color: #12497A; }
 
+/* Cards */
 .card {
   background: #fff; border: 1px solid #E3E9F2; border-radius: 16px; padding: 18px 20px;
   box-shadow: 0 1px 2px rgba(15,23,42,.04);
@@ -77,6 +93,13 @@ header[data-testid="stHeader"] { background: transparent; }
 .section-title { font-size: 17px; font-weight: 700; color: #0F172A; margin: 4px 0 2px 0; }
 .section-sub { font-size: 13px; color: #64748B; margin-bottom: 10px; }
 
+/* Badges */
+.badge { display:inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 600; }
+.badge.good { background:#E6F6EC; color:#15803D; }
+.badge.warn { background:#FEF3C7; color:#92400E; }
+.badge.neutral { background:#EEF2F7; color:#475569; }
+
+/* Stats table */
 table.stats { width:100%; border-collapse: collapse; font-size: 13.5px; }
 table.stats th { text-align:left; color:#64748B; font-weight:600; font-size:11.5px; text-transform:uppercase;
   letter-spacing:.05em; padding: 6px 8px; border-bottom: 1px solid #E3E9F2; }
@@ -84,17 +107,19 @@ table.stats td { padding: 8px; border-bottom: 1px solid #F0F3F8; color:#0F172A; 
 table.stats td.grp { font-weight:700; color:#12497A; white-space: nowrap; }
 table.stats td.num { text-align:right; font-variant-numeric: tabular-nums; font-weight:600; }
 
+/* Trend verdict banner */
 .verdict { display:flex; align-items:center; gap:16px; border-radius:16px; padding:16px 20px;
   border:1px solid var(--vb); background: var(--vbg); }
 .verdict .vicon { width:46px; height:46px; border-radius:50%; display:flex; align-items:center;
   justify-content:center; font-size:20px; color:#fff; background: var(--vc); flex-shrink:0; }
 .verdict .vtitle { font-size:20px; font-weight:800; color: var(--vc); letter-spacing:-.01em; }
 .verdict .vsub { font-size:13px; color:#475569; margin-top:2px; line-height:1.45; }
-.verdict.up { --vc:#C2410C; --vbg:#FFF4EC; --vb:#F9D3B8; }
+.verdict.up   { --vc:#C2410C; --vbg:#FFF4EC; --vb:#F9D3B8; }
 .verdict.down { --vc:#1D5FA8; --vbg:#EEF5FF; --vb:#C9DDF7; }
 .verdict.weak { --vc:#92400E; --vbg:#FEF8E3; --vb:#F5DFA0; }
 .verdict.none { --vc:#475569; --vbg:#F1F4F8; --vb:#DCE3EC; }
 
+/* Notice */
 .notice {
   background: #FFF8E6; border: 1px solid #F5DFA0; border-radius: 12px; padding: 12px 14px;
   font-size: 13px; color: #6B4E00; line-height: 1.5;
@@ -107,6 +132,9 @@ section[data-testid="stSidebar"] { background: #fff; border-right: 1px solid #E3
 st.markdown(CSS, unsafe_allow_html=True)
 
 
+# --------------------------------------------------------------------------
+# Helpers
+# --------------------------------------------------------------------------
 def fmt_signed(v: float, d: int = 4) -> str:
     return "n/a" if v is None or not np.isfinite(v) else f"{v:+.{d}f}"
 
@@ -141,6 +169,7 @@ def to_bool(series: pd.Series) -> pd.Series:
 
 
 def read_source(upload, filename: str):
+    """Uploaded file wins; otherwise the file next to app.py."""
     if upload is not None:
         return pd.read_csv(upload), f"uploaded {upload.name}"
     path = APP_DIR / filename
@@ -160,6 +189,7 @@ def check_columns(df: pd.DataFrame, required: list[str], name: str) -> None:
 
 
 def analyse(years, values):
+    """Regression, Kendall tau and Sen's slope on the selected yearly values."""
     x = np.asarray(years, dtype=float)
     y = np.asarray(values, dtype=float)
     ok = np.isfinite(x) & np.isfinite(y)
@@ -189,6 +219,8 @@ def analyse(years, values):
 
 
 def trend_verdict(res: dict, alpha: float = 0.05):
+    """Standard rule: a trend is reported only if BOTH the regression and the
+    Kendall tau p-values are below alpha and both point the same way."""
     p_ok = res["p"] < alpha
     t_ok = res["tau_p"] < alpha
     same_dir = np.sign(res["slope"]) == np.sign(res["tau"])
@@ -216,6 +248,9 @@ def base_layout(fig: go.Figure, height: int = 440) -> go.Figure:
     return fig
 
 
+# --------------------------------------------------------------------------
+# Sidebar: data sources + reading notes
+# --------------------------------------------------------------------------
 with st.sidebar:
     st.markdown("### 📂 Data")
     up_yearly = st.file_uploader("yearly_series.csv (optional)", type="csv", key="up_y")
@@ -236,7 +271,7 @@ yearly_raw, yearly_src = read_source(up_yearly, "yearly_series.csv")
 trends_raw, trends_src = read_source(up_trends, "state_trends.csv")
 
 if yearly_raw is None:
-    st.error("yearly_series.csv was not found next to the app file. Upload it in the sidebar.")
+    st.error("yearly_series.csv was not found next to app.py. Upload it in the sidebar.")
     st.stop()
 check_columns(yearly_raw, REQUIRED_YEARLY, "yearly_series.csv")
 
@@ -258,7 +293,7 @@ if trends_raw is not None:
     trends["significant"] = to_bool(trends["significant"])
     if "trend" in trends.columns:
         trends["trend"] = trends["trend"].astype(str).str.strip().str.capitalize()
-    else:
+    else:  # derive a label from the supplied columns if the file has none
         trends["trend"] = np.where(
             ~trends["significant"],
             "No significant trend",
@@ -274,6 +309,9 @@ states = sorted(yearly["state"].unique())
 variables = [v for v in VAR_LABELS if v in set(yearly["variable"])] or sorted(yearly["variable"].unique())
 y_min, y_max = int(yearly["year"].min()), int(yearly["year"].max())
 
+# --------------------------------------------------------------------------
+# Hero
+# --------------------------------------------------------------------------
 st.markdown(
     f"""
 <div class="hero">
@@ -292,8 +330,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab1, tab2 = st.tabs(["📈 Year-wise State Analysis", "🗺️ All-State Trend Overview"])
+tab1, tab2 = st.tabs(["📈  Year-wise State Analysis", "🗺️  All-State Trend Overview"])
 
+# ==========================================================================
+# PAGE 1 - Year-wise State Analysis
+# ==========================================================================
 with tab1:
     c1, c2, c3 = st.columns([1.4, 1.6, 2.2])
     with c1:
@@ -434,4 +475,200 @@ with tab1:
             )
             st.caption("Slopes are in the CSV's (unspecified) units per year. p-values assume independent years.")
 
-        with st.expander("📋 View / download the yearly values use
+        with st.expander("📋 View / download the yearly values used"):
+            show = sub[["year", "value"]].rename(columns={"year": "Year", "value": "Value"})
+            st.dataframe(show, hide_index=True)
+            st.download_button(
+                "Download as CSV",
+                show.to_csv(index=False).encode("utf-8"),
+                file_name=f"{state}_{variable}_{start}-{end}.csv".replace(" ", "_"),
+                mime="text/csv",
+            )
+
+# ==========================================================================
+# PAGE 2 - All-State Trend Overview
+# ==========================================================================
+with tab2:
+    if trends is None:
+        st.error("state_trends.csv was not found next to app.py. Upload it in the sidebar.")
+    else:
+        st.markdown(
+            '<div class="notice blue"><b>About this page:</b> trend, rate of change, p-value and '
+            "significance are the <b>pre-calculated values supplied in state_trends.csv</b>. "
+            "They are not recalculated here, so they can differ from the statistics on the "
+            "Year-wise page.</div>",
+            unsafe_allow_html=True,
+        )
+        st.write("")
+
+        o1, o2 = st.columns([2, 1.4])
+        with o1:
+            ov_var = st.radio(
+                "Variable", variables, format_func=var_label, horizontal=True, key="ov_var"
+            )
+        with o2:
+            only_sig = st.toggle("Show only significant states", value=False)
+
+        d = trends[trends["variable"] == ov_var].dropna(subset=["change_per_year"]).copy()
+        if only_sig:
+            d = d[d["significant"]]
+
+        if d.empty:
+            st.warning("No states to show with the current filters.")
+        else:
+            acc = VAR_COLORS.get(ov_var, "#12497A")
+            soft = VAR_SOFT.get(ov_var, "#CBD5E1")
+            n_sig = int(d["significant"].sum())
+            top = d.loc[d["change_per_year"].abs().idxmax()]
+
+            k1, k2, k3, k4 = st.columns(4)
+            k1.markdown(kpi("States shown", f"{len(d)}", var_label(ov_var), acc), unsafe_allow_html=True)
+            k2.markdown(
+                kpi("Marked significant", f"{n_sig}", "per supplied summary", acc), unsafe_allow_html=True
+            )
+            k3.markdown(
+                kpi(
+                    "Rising / falling",
+                    f"{int((d['change_per_year'] > 0).sum())} / {int((d['change_per_year'] < 0).sum())}",
+                    "by sign of change per year",
+                    acc,
+                ),
+                unsafe_allow_html=True,
+            )
+            k4.markdown(
+                kpi(
+                    "Largest change",
+                    fmt_signed(top["change_per_year"]),
+                    f"{top['state']} (per year)",
+                    acc,
+                ),
+                unsafe_allow_html=True,
+            )
+
+            st.write("")
+            st.markdown(
+                f'<div class="section-title">Rate of change per year by state · {var_label(ov_var)}</div>'
+                f'<div class="section-sub">Solid bars are marked significant in the supplied summary; '
+                f"faded bars are not. Values: {UNITS_NOTE}.</div>",
+                unsafe_allow_html=True,
+            )
+            ds = d.sort_values("change_per_year")
+            fig2 = go.Figure()
+            for flag, name, colr in [(True, "Significant (supplied)", acc), (False, "Not significant", soft)]:
+                part = ds[ds["significant"] == flag]
+                if part.empty:
+                    continue
+                fig2.add_trace(
+                    go.Bar(
+                        x=part["change_per_year"],
+                        y=part["state"],
+                        orientation="h",
+                        name=name,
+                        marker=dict(color=colr),
+                        customdata=np.column_stack([part["p_value"].to_numpy(), part["trend"].to_numpy()]),
+                        hovertemplate="<b>%{y}</b><br>Trend: %{customdata[1]}<br>Change/yr: %{x:+.4f}<br>p-value: %{customdata[0]:.4f}<extra></extra>",
+                    )
+                )
+            base_layout(fig2, max(440, 24 * len(ds) + 90))
+            fig2.update_layout(barmode="relative", bargap=0.25)
+            fig2.update_yaxes(categoryorder="array", categoryarray=list(ds["state"]), gridcolor="rgba(0,0,0,0)")
+            fig2.update_xaxes(title=f"Change per year ({UNITS_NOTE})", gridcolor=GRID, zeroline=True,
+                              zerolinecolor="#94A3B8", showgrid=True)
+            st.plotly_chart(fig2, config={"displayModeBar": False})
+
+            a, b = st.columns([1.2, 1])
+            with a:
+                st.markdown(
+                    '<div class="section-title">Effect size vs p-value</div>'
+                    '<div class="section-sub">Dashed line marks p = 0.05 (supplied p-values).</div>',
+                    unsafe_allow_html=True,
+                )
+                fig3 = go.Figure()
+                fig3.add_trace(
+                    go.Scatter(
+                        x=d["change_per_year"],
+                        y=d["p_value"],
+                        mode="markers",
+                        text=d["state"],
+                        marker=dict(
+                            size=11,
+                            color=[acc if s else soft for s in d["significant"]],
+                            line=dict(color="white", width=1.2),
+                        ),
+                        hovertemplate="<b>%{text}</b><br>Change/yr: %{x:+.4f}<br>p-value: %{y:.4f}<extra></extra>",
+                        showlegend=False,
+                    )
+                )
+                fig3.add_hline(y=0.05, line=dict(color=MUTED, dash="dash", width=1.5))
+                base_layout(fig3, 400)
+                fig3.update_xaxes(title=f"Change per year ({UNITS_NOTE})", showgrid=True, gridcolor=GRID)
+                fig3.update_yaxes(title="p-value (supplied)")
+                st.plotly_chart(fig3, config={"displayModeBar": False})
+
+            with b:
+                st.markdown(
+                    '<div class="section-title">State table</div>'
+                    '<div class="section-sub">Sorted by size of change.</div>',
+                    unsafe_allow_html=True,
+                )
+                cols = ["state", "trend", "change_per_year", "p_value", "significant"]
+                tbl = d.sort_values("change_per_year", ascending=False)[cols].rename(
+                    columns={
+                        "state": "State",
+                        "trend": "Trend",
+                        "change_per_year": "Change / yr",
+                        "p_value": "p-value",
+                        "significant": "Significant",
+                    }
+                )
+                st.dataframe(
+                    tbl,
+                    hide_index=True,
+                    height=400,
+                    column_config={
+                        "Change / yr": st.column_config.NumberColumn(format="%+.4f"),
+                        "p-value": st.column_config.NumberColumn(format="%.4f"),
+                    },
+                )
+
+        # ---- Temperature vs precipitation comparison -----------------------
+        if {"T2M", "PRECTOTCORR"}.issubset(set(trends["variable"])):
+            st.write("")
+            st.markdown(
+                '<div class="section-title">Temperature vs precipitation, state by state</div>'
+                '<div class="section-sub">Each dot is a state. The two axes use different (unspecified) '
+                "units, so compare direction and ranking, not magnitude.</div>",
+                unsafe_allow_html=True,
+            )
+            piv = trends.pivot_table(
+                index="state", columns="variable", values=["change_per_year", "significant"], aggfunc="first"
+            )
+            piv.columns = [f"{a}|{b}" for a, b in piv.columns]
+            piv = piv.dropna(subset=["change_per_year|T2M", "change_per_year|PRECTOTCORR"]).reset_index()
+            sig_t = piv["significant|T2M"].astype(bool)
+            sig_p = piv["significant|PRECTOTCORR"].astype(bool)
+            piv["sig_count"] = sig_t.astype(int) + sig_p.astype(int)
+            palette = {0: "#CBD5E1", 1: "#12497A", 2: "#E8590C"}
+            names = {0: "Neither significant", 1: "One significant", 2: "Both significant"}
+            fig4 = go.Figure()
+            for k in (0, 1, 2):
+                part = piv[piv["sig_count"] == k]
+                if part.empty:
+                    continue
+                fig4.add_trace(
+                    go.Scatter(
+                        x=part["change_per_year|T2M"],
+                        y=part["change_per_year|PRECTOTCORR"],
+                        mode="markers",
+                        name=names[k],
+                        text=part["state"],
+                        marker=dict(size=12, color=palette[k], line=dict(color="white", width=1.2)),
+                        hovertemplate="<b>%{text}</b><br>Temp change/yr: %{x:+.4f}<br>Precip change/yr: %{y:+.4f}<extra></extra>",
+                    )
+                )
+            base_layout(fig4, 430)
+            fig4.add_vline(x=0, line=dict(color="#94A3B8", width=1))
+            fig4.add_hline(y=0, line=dict(color="#94A3B8", width=1))
+            fig4.update_xaxes(title="Temperature change per year (T2M)", showgrid=True, gridcolor=GRID)
+            fig4.update_yaxes(title="Precipitation change per year (PRECTOTCORR)")
+            st.plotly_chart(fig4, config={"displayModeBar": False})
