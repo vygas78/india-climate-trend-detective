@@ -383,11 +383,30 @@ def draw_overview_plot(fig, data, variables):
             else:
                 colors.append(COL_DEC)
         pos = np.arange(len(d))
-        ax.barh(pos, d["change_per_year"].to_numpy(), color=colors, height=0.72)
+        vals = d["change_per_year"].to_numpy()
+        ax.barh(pos, vals, color=colors, height=0.72)
+        # Label size adapts to the chart height so state names stay readable
+        # (and never overlap) in small windows.
+        points_per_bar = fig.get_figheight() * 72 * 0.78 / max(len(d), 1)
+        label_fs = float(min(10, max(5.5, points_per_bar * 0.8)))
         ax.set_yticks(pos)
-        ax.set_yticklabels(d["state"].tolist(), fontsize=8)
+        ax.set_yticklabels(d["state"].tolist(), fontsize=label_fs)
         ax.invert_yaxis()
         ax.axvline(0, color="#333333", linewidth=0.8)
+        # Value labels on significant bars only, with room for them.
+        lo, hi = float(min(vals.min(), 0)), float(max(vals.max(), 0))
+        span = (hi - lo) or 1.0
+        sig_arr = d["significant"].to_numpy()
+        has_neg_label = bool(((vals < 0) & sig_arr).any())
+        has_pos_label = bool(((vals >= 0) & sig_arr).any())
+        ax.set_xlim(lo - (0.30 if has_neg_label else 0.05) * span,
+                    hi + (0.17 if has_pos_label else 0.05) * span)
+        for p, v, sig in zip(pos, vals, d["significant"].to_numpy()):
+            if sig:
+                ax.text(v + (0.01 * span if v >= 0 else -0.01 * span), p,
+                        f"{v:+.3f}", va="center",
+                        ha="left" if v >= 0 else "right",
+                        fontsize=max(5.0, label_fs - 1), color="#333333")
         ax.set_xlabel("Change per year (supplied; units not given)", fontsize=9)
         ax.tick_params(axis="x", labelsize=8)
         ax.grid(True, axis="x", alpha=0.3)

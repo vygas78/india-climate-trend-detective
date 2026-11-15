@@ -24,6 +24,28 @@ TRENDS_PATH = APP_DIR / "state_trends.csv"
 st.set_page_config(page_title="EarthTrend Explorer", page_icon="\U0001F30D",
                    layout="wide")
 
+STYLE = """
+<style>
+.block-container {padding-top: 1.4rem; max-width: 1350px;}
+.et-hero {background: linear-gradient(120deg, #12263f 0%, #1b6ca8 100%);
+          padding: 20px 28px; border-radius: 14px; margin-bottom: 16px;}
+.et-hero h1 {margin: 0; font-size: 1.9rem; color: #ffffff; padding: 0;}
+.et-hero p {margin: 6px 0 0 0; color: #d6e4f2; font-size: 0.95rem;}
+[data-testid="stMetric"] {background: rgba(128,128,128,0.08);
+          border: 1px solid rgba(128,128,128,0.25); border-radius: 12px;
+          padding: 12px 16px;}
+button[data-baseweb="tab"] {font-weight: 600; font-size: 1rem;}
+</style>
+"""
+
+HERO = """
+<div class="et-hero">
+  <h1>EarthTrend Explorer</h1>
+  <p>Environmental trends across Indian states &middot; T2M (temperature) and
+  PRECTOTCORR (precipitation) &middot; 2003&ndash;2023</p>
+</div>
+"""
+
 
 # ---------------------------------------------------------------- data ----
 @st.cache_data(show_spinner=False)
@@ -154,6 +176,14 @@ def page_series(yearly, trends):
                    f"Residual lag-1 autocorrelation: "
                    f"{core.fmt_num(res['lag1'], 2, signed=True)} "
                    "(rough check of year-to-year correlation).")
+        used = pd.DataFrame({
+            "year": res["years"].astype(int), "value": res["values"],
+            "regression_fit": res["intercept"] + res["slope"] * res["years"],
+            "sen_fit": res["sen_intercept"] + res["sen_slope"] * res["years"]})
+        st.download_button("Download the yearly data used (CSV)",
+                           used.to_csv(index=False).encode("utf-8"),
+                           file_name=f"{state}_{var}_{res['start']}-{res['end']}.csv",
+                           mime="text/csv")
 
     st.subheader("Supplied summary (state_trends.csv)")
     sup = None
@@ -179,6 +209,31 @@ def page_series(yearly, trends):
 
 
 # -------------------------------------------------------------- page 2 ----
+def takeaways(trends, variables):
+    """Plain-language highlights taken from the supplied summary only."""
+    lines = []
+    for v in variables:
+        name = core.VAR_LABELS.get(v, v)
+        d = trends[(trends["variable"] == v) & (trends["significant"])]
+        if d.empty:
+            lines.append(f"- **{name}:** no state is marked significant.")
+            continue
+        parts = []
+        up = d[d["change_per_year"] > 0]
+        dn = d[d["change_per_year"] < 0]
+        if not up.empty:
+            r = up.loc[up["change_per_year"].idxmax()]
+            parts.append(f"largest significant increase is {r['state']} "
+                         f"({r['change_per_year']:+.3f} per year)")
+        if not dn.empty:
+            r = dn.loc[dn["change_per_year"].idxmin()]
+            parts.append(f"largest significant decrease is {r['state']} "
+                         f"({r['change_per_year']:+.3f} per year)")
+        lines.append(f"- **{name}:** " + "; ".join(parts) + ".")
+    return ("**Highlights (from the supplied summary, not recomputed):**\n"
+            + "\n".join(lines))
+
+
 def page_overview(trends):
     if trends is None:
         st.error("state_trends.csv was not found. Upload it in the sidebar.")
@@ -208,6 +263,8 @@ def page_overview(trends):
                        f"{int((sig['change_per_year'] < 0).sum())} decreasing "
                        "(as supplied)")
 
+    st.markdown(takeaways(trends, variables))
+
     data = core.filter_trends(trends, variables, only_sig, sort_mode)
     fig = Figure(figsize=(13, 9) if len(variables) > 1 else (8, 9), dpi=110)
     core.draw_overview_plot(fig, data, variables)
@@ -218,6 +275,9 @@ def page_overview(trends):
         "change_per_year": "Change per year", "p_value": "P-value",
         "significant": "Significant"})
     st.dataframe(table, hide_index=True)
+    st.download_button("Download this table (CSV)",
+                       table.to_csv(index=False).encode("utf-8"),
+                       file_name="state_trends_view.csv", mime="text/csv")
     st.caption(
         "These values come from the supplied state_trends.csv. They were "
         "pre-calculated by a method the file does not document and are NOT "
@@ -228,15 +288,25 @@ def page_overview(trends):
 
 # ----------------------------------------------------------------- main ----
 def main():
-    st.title("EarthTrend Explorer")
-    st.caption("Environmental trends across Indian states – T2M (temperature) "
-               "and PRECTOTCORR (precipitation), 2003–2023")
+    st.markdown(STYLE + HERO, unsafe_allow_html=True)
     yearly, trends = load_data()
     tab1, tab2 = st.tabs(["1  Year-wise State Analysis", "2  All-State Trend Overview"])
     with tab1:
         page_series(yearly, trends)
     with tab2:
         page_overview(trends)
+    with st.expander("About the data and methods"):
+        st.markdown(
+            "- **Page 1** calculates linear regression, Kendall tau and Sen's slope "
+            "from the yearly values in `yearly_series.csv`.\n"
+            "- **Page 2** shows the pre-calculated `state_trends.csv`. In the "
+            "file supplied with this app, `change_per_year` equals the regression "
+            "slope, while the p-values and significance flags come from a method "
+            "the file does not document.\n"
+            "- None of these tests model serial correlation or seasonality, so "
+            "p-values can look more convincing than they are.\n"
+            "- The files give no units and do not say how values were aggregated "
+            "over each state, so they are not described as state-wide averages.")
 
 
 main()
