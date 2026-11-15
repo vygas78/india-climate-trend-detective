@@ -36,7 +36,9 @@ VAR_SOFT = {"T2M": "#F7C6A6", "PRECTOTCORR": "#A9D0F5"}
 INK = "#0F172A"
 MUTED = "#64748B"
 GRID = "#E5EAF1"
-UNITS_NOTE = "temperature"
+VAR_UNITS={
+  "T2M": "°C"
+  "PRECTOTCORR": "mm/day"
 
 REQUIRED_YEARLY = ["state", "variable", "year", "value"]
 REQUIRED_TRENDS = ["state", "variable", "change_per_year", "p_value", "significant"]
@@ -412,7 +414,7 @@ with tab1:
             st.markdown(
                 f'<div class="section-title">{state} · {var_label(variable)}, {start}–{end}</div>'
                 f'<div class="section-sub">Observed yearly values with fitted trend lines '
-                f"(values: {UNITS_NOTE})</div>",
+                f"(values: {VAR_UNITS.get(ov_var,"units not verified")})</div>",
                 unsafe_allow_html=True,
             )
             xs = np.array([sub["year"].min(), sub["year"].max()], dtype=float)
@@ -450,7 +452,7 @@ with tab1:
             )
             base_layout(fig, 450)
             fig.update_xaxes(tickformat="d", dtick=2 if (end - start) > 8 else 1, title="Year")
-            fig.update_yaxes(title=f"Value ({UNITS_NOTE})")
+            fig.update_yaxes(title=f"Value ({VAR_UNITS.get(ov_var,"units not verified")})")
             st.plotly_chart(fig, config={"displayModeBar": False})
 
         with right:
@@ -550,7 +552,7 @@ with tab2:
             st.markdown(
                 f'<div class="section-title">Rate of change per year by state · {var_label(ov_var)}</div>'
                 f'<div class="section-sub">Solid bars are marked significant in the supplied summary; '
-                f"faded bars are not. Values: {UNITS_NOTE}.</div>",
+                f"faded bars are not. Values: {VAR_UNITS.get(ov_var,"units not verified")}.</div>",
                 unsafe_allow_html=True,
             )
             ds = d.sort_values("change_per_year")
@@ -573,7 +575,7 @@ with tab2:
             base_layout(fig2, max(440, 24 * len(ds) + 90))
             fig2.update_layout(barmode="relative", bargap=0.25)
             fig2.update_yaxes(categoryorder="array", categoryarray=list(ds["state"]), gridcolor="rgba(0,0,0,0)")
-            fig2.update_xaxes(title=f"Change per year ({UNITS_NOTE})", gridcolor=GRID, zeroline=True,
+            fig2.update_xaxes(title=f"Change per year ({VAR_UNITS.get(ov_var,"units not verified")})", gridcolor=GRID, zeroline=True,
                               zerolinecolor="#94A3B8", showgrid=True)
             st.plotly_chart(fig2, config={"displayModeBar": False})
 
@@ -602,7 +604,7 @@ with tab2:
                 )
                 fig3.add_hline(y=0.05, line=dict(color=MUTED, dash="dash", width=1.5))
                 base_layout(fig3, 400)
-                fig3.update_xaxes(title=f"Change per year ({UNITS_NOTE})", showgrid=True, gridcolor=GRID)
+                fig3.update_xaxes(title=f"Change per year ({VAR_UNITS.get(ov_var,"units not verified")})", showgrid=True, gridcolor=GRID)
                 fig3.update_yaxes(title="p-value (supplied)")
                 st.plotly_chart(fig3, config={"displayModeBar": False})
 
