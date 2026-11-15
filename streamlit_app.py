@@ -38,7 +38,7 @@ MUTED = "#64748B"
 GRID = "#E5EAF1"
 VAR_UNITS={
   "T2M": "°C"
-  "PRECTOTCORR": "mm/day"
+  "PRECTOTCORR" : "mm/day"
 }
 REQUIRED_YEARLY = ["state", "variable", "year", "value"]
 REQUIRED_TRENDS = ["state", "variable", "change_per_year", "p_value", "significant"]
